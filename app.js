@@ -1,4 +1,4 @@
-/* Halloween Snap v1.01 — static Github Pages + Supabase.
+/* Halloween Snap v1.02 — static Github Pages + Supabase.
    Public browser config only. Never embed a service-role key. */
 (() => {
   'use strict';
@@ -15,8 +15,7 @@
     {id:'graveyard',label:'Graveyard',css:'sepia(.35) hue-rotate(105deg) saturate(.83) contrast(1.28)',icon:'🪦'},
     {id:'noir',label:'Midnight',css:'grayscale(1) contrast(1.35)',icon:'🌙'}
   ];
-  const VIDEO_UPLOAD_MAX_SECONDS = 300; // Snapchat imported-video limit
-  const VIDEO_RECORD_MAX_SECONDS = 180; // Snapchat camera video limit
+  const VIDEO_MAX_SECONDS = 45; // Same maximum for camera and uploaded clips
   const VIDEO_MAX_BYTES = 50*1024*1024; // Supabase Free storage object cap
   const FRAMES = [{id:'none',label:'No frame',icon:'◯'},{id:'bats',label:'🦇 Bats'},{id:'web',label:'🕸 Webs'},{id:'pumpkins',label:'🎃 Pumpkins'},{id:'ghosts',label:'👻 Ghosts'}];
   const THEMES = [
@@ -27,7 +26,7 @@
   ];
   const state = {
     db:null,user:null,party:null,me:null,members:[],photos:[],likes:[],signed:new Map(),
-    channel:null,poll:null,loading:false,demo:false,demoSealed:[],pending:{count:0,next:null},composer:{file:null,url:null,img:null,video:null,kind:'image',duration:0,filter:'none',frame:'none',stream:null,facing:'environment',busy:false,recorder:null,recordTimer:null,recordStarted:0,cameraMode:'image',cancelRecording:false},
+    channel:null,poll:null,loading:false,demo:false,demoSealed:[],pending:{count:0,next:null},composer:{file:null,url:null,img:null,video:null,kind:'image',duration:0,filter:'none',frame:'none',stream:null,facing:'environment',busy:false,recorder:null,recordTimer:null,recordDeadline:null,recordStarted:0,cameraMode:'image',cancelRecording:false},
     accessMode:'create',viewIds:[],viewIndex:0,localTheme:null
   };
   const escapeHTML = v => String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -431,7 +430,7 @@
         await new Promise(resolve=>{v.onseeked=resolve;setTimeout(resolve,1800);});
       }
       if(!(v.duration>0&&Number.isFinite(v.duration)))throw new Error('Cannot read video duration. Convert it to MP4 and try again.');
-      if(v.duration>VIDEO_UPLOAD_MAX_SECONDS+0.5)throw new Error('Videos must be 5 minutes (300 seconds) or less. Trim it and try again.');
+      if(v.duration>VIDEO_MAX_SECONDS)throw new Error('Videos must be 45 seconds or less. Trim the clip and try again.');
       return {duration:v.duration,width:v.videoWidth||720,height:v.videoHeight||1280};
     }finally {v.removeAttribute('src');v.load();}
   }
@@ -464,7 +463,7 @@
       $('source-choice').hidden=true;$('camera-stage').hidden=true;$('edit-stage').hidden=false;
       $('edit-photo').hidden=isVideoFile;$('edit-video').hidden=!isVideoFile;
       if(isVideoFile){$('edit-video').src=url;$('edit-video').load();}else{$('edit-video').pause();$('edit-video').removeAttribute('src');$('edit-photo').src=url;}
-      $('editor-kind').textContent=isVideoFile?`VIDEO • ${Math.round(duration)}s / 300s`:'PHOTO';
+      $('editor-kind').textContent=isVideoFile?`VIDEO • ${Math.round(duration)}s / ${VIDEO_MAX_SECONDS}s`:'PHOTO';
       $('video-effects-note').hidden=!isVideoFile;
       $('editor-back').textContent=isVideoFile?'← Change video':'← Change photo';
       renderFilterOptions();
@@ -481,12 +480,13 @@
       await $('camera-preview').play();
       $('source-choice').hidden=true;$('camera-stage').hidden=false;$('edit-stage').hidden=true;
       $('camera-shutter').hidden=videoMode;$('camera-record').hidden=!videoMode;
-      $('record-counter').hidden=!videoMode;$('record-counter').textContent='00:00 / 03:00';
+      $('record-counter').hidden=!videoMode;$('record-counter').textContent='00:00 / 00:45';
     }catch(e){toast('Live camera unavailable. Choose a video or photo from your device.');(videoMode?$('capture-video-file'):$('camera-file')).click();}
   }
   async function stopCamera() {
     const c=state.composer;
     if(c.recordTimer){clearInterval(c.recordTimer);c.recordTimer=null;}
+    if(c.recordDeadline){clearTimeout(c.recordDeadline);c.recordDeadline=null;}
     if(c.recorder?.state==='recording'){
       c.cancelRecording=true; c.recorder.stop();
     }
@@ -518,6 +518,7 @@
       rec.onerror=()=>toast('Could not record video on this device.');
       rec.onstop=async()=>{
         if(c.recordTimer){clearInterval(c.recordTimer);c.recordTimer=null;}
+        if(c.recordDeadline){clearTimeout(c.recordDeadline);c.recordDeadline=null;}
         $('camera-record').classList.remove('recording');$('camera-record').textContent='● Record';
         if(c.cancelRecording||!chunks.length)return;
         const outputType=rec.mimeType.startsWith('video/mp4')?'video/mp4':'video/webm';
@@ -527,11 +528,14 @@
         await setSource(new File([blob],'halloween-recording.'+ext,{type:outputType}));
       };
       rec.start(1000);c.recordStarted=Date.now();
+      // Stop a fraction early so muxing overhead doesn't create a clip over 45 seconds.
+      c.recordDeadline=setTimeout(()=>{
+        if(rec.state==='recording'){rec.stop();toast('45-second recording limit reached.');}
+      },VIDEO_MAX_SECONDS*1000-350);
       $('camera-record').classList.add('recording');$('camera-record').textContent='■ Stop';
       c.recordTimer=setInterval(()=>{
         const sec=Math.floor((Date.now()-c.recordStarted)/1000);
-        $('record-counter').textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')+' / 03:00';
-        if(sec>=VIDEO_RECORD_MAX_SECONDS&&rec.state==='recording'){rec.stop();toast('3-minute recording limit reached.');}
+        $('record-counter').textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')+' / 00:45';
       },300);
     }catch(e){toast('Video recording failed. Use Upload video instead.');}
   }
@@ -572,7 +576,7 @@
       const fileType=video?getVideoType(c.file):'image/jpeg';
       const extension=video?({'video/mp4':'mp4','video/quicktime':'mov','video/webm':'webm'})[fileType]:'jpg';
       if(!extension)throw new Error('Unsupported video type.');
-      if(video && (c.duration>VIDEO_UPLOAD_MAX_SECONDS+0.5||blob.size>VIDEO_MAX_BYTES))throw new Error('Video exceeds 5 minutes or 50 MB.');
+      if(video && (c.duration>VIDEO_MAX_SECONDS||blob.size>VIDEO_MAX_BYTES))throw new Error('Video exceeds 45 seconds or 50 MB.');
       if(state.demo) {
         const url=URL.createObjectURL(blob);
         state.demoSealed.unshift({id,room_id:'demo',author_id:state.user.id,author_name:state.me.display_name,caption,storage_path:'',localUrl:url,media_kind:video?'video':'image',duration_seconds:video?c.duration:null,filter_name:c.filter,frame_name:c.frame,created_at:new Date().toISOString()});

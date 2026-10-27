@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="styles.css?v=1.01">
   <script src="config.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script defer src="app.js?v=1.01"></script>
+  <script defer src="app.js?v=1.02"></script>
 </head>
 <body data-theme="haunted">
   <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -98,7 +98,7 @@
         <div class="gallery-bottom">✦ &nbsp; THE NIGHT IS OURS. THE REVEAL COMES IN 12 HOURS. &nbsp; ✦</div>
       </section>
     </main>
-    <footer class="site-footer"><span>MADE FOR THE MOMENTS YOU ALMOST FORGOT.</span><span>HALLOWEEN SNAP <b>V1.01</b> ✳</span></footer>
+    <footer class="site-footer"><span>MADE FOR THE MOMENTS YOU ALMOST FORGOT.</span><span>HALLOWEEN SNAP <b>V1.02</b> ✳</span></footer>
   </div>
 
   <nav id="mobile-bar" class="mobile-bar" aria-label="Party actions" hidden>
@@ -130,8 +130,8 @@
     <div class="modal-backdrop" data-close="composer"></div>
     <div class="dialog composer-dialog" role="dialog" aria-modal="true" aria-labelledby="composer-heading">
       <div class="dialog-top"><div><span class="dialog-eyebrow">✳ &nbsp; A MEMORY IN THE MAKING</span><h2 id="composer-heading">DROP A SNAP</h2></div><button class="close-button close-inline" type="button" data-close="composer" aria-label="Close">×</button></div>
-      <div id="source-choice" class="source-choice"><div class="upload-illustration">✹ <span>📸</span> ✹</div><h3>Catch the moment.</h3><p>Take a photo, record a clip, or upload from your camera roll.</p><div class="source-buttons"><button id="start-camera" class="button button-primary" type="button">◎ Take photo</button><button id="start-video-camera" class="button button-primary" type="button">◉ Record video</button><button id="choose-photo" class="button button-secondary" type="button">▧ Upload photo</button><button id="choose-video" class="button button-secondary" type="button">▶ Upload video</button></div><small>Video: record up to 3 minutes · upload up to 5 minutes · 50 MB max</small><div class="sealed-upload-note">🔒 Everything you post stays hidden from <b>everyone</b> for 12 hours.</div></div>
-      <div id="camera-stage" class="camera-stage" hidden><video id="camera-preview" autoplay playsinline muted></video><div id="record-counter" class="record-counter" hidden>00:00 / 03:00</div><div class="camera-actions"><button id="camera-cancel" class="button button-secondary" type="button">← Back</button><button id="camera-shutter" class="shutter" type="button" aria-label="Take photo"></button><button id="camera-record" class="camera-record" type="button" hidden>● Record</button><button id="camera-flip" class="button button-secondary" type="button">⇄ Flip</button></div></div>
+      <div id="source-choice" class="source-choice"><div class="upload-illustration">✹ <span>📸</span> ✹</div><h3>Catch the moment.</h3><p>Take a photo, record a clip, or upload from your camera roll.</p><div class="source-buttons"><button id="start-camera" class="button button-primary" type="button">◎ Take photo</button><button id="start-video-camera" class="button button-primary" type="button">◉ Record video</button><button id="choose-photo" class="button button-secondary" type="button">▧ Upload photo</button><button id="choose-video" class="button button-secondary" type="button">▶ Upload video</button></div><small>Video: 45 seconds max for recording or uploading · 50 MB max</small><div class="sealed-upload-note">🔒 Everything you post stays hidden from <b>everyone</b> for 12 hours.</div></div>
+      <div id="camera-stage" class="camera-stage" hidden><video id="camera-preview" autoplay playsinline muted></video><div id="record-counter" class="record-counter" hidden>00:00 / 00:45</div><div class="camera-actions"><button id="camera-cancel" class="button button-secondary" type="button">← Back</button><button id="camera-shutter" class="shutter" type="button" aria-label="Take photo"></button><button id="camera-record" class="camera-record" type="button" hidden>● Record</button><button id="camera-flip" class="button button-secondary" type="button">⇄ Flip</button></div></div>
       <div id="edit-stage" class="edit-stage" hidden>
         <div class="photo-preview-wrap"><div id="photo-preview-box" class="photo-preview-box"><img id="edit-photo" alt="Photo preview"><video id="edit-video" controls playsinline preload="metadata" hidden></video><img id="edit-frame" class="frame-overlay" alt="" hidden></div></div><div id="editor-kind" class="editor-kind">PHOTO</div><p id="video-effects-note" class="video-effects-note" hidden>✦ Video filters and frames show in the player, but a saved/downloaded video retains its original recording.</p>
         <div class="edit-options"><div class="edit-section-label">✦ PICK A FILTER <span id="chosen-filter">ORIGINAL</span></div><div id="filter-list" class="filter-list"></div>
