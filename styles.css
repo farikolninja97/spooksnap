@@ -28,3 +28,37 @@ body[data-theme="slime"]{--bg:#101a18;--surface:#172823;--surface2:#203a30;--tex
 .record-counter{color:white;text-align:center;font-weight:800;letter-spacing:2px;padding:10px;font-size:14px}.camera-record{border:0;background:#ff5266;color:white;font-weight:900;border-radius:100px;padding:15px 22px;min-width:114px}.camera-record.recording{background:#b91c3d;animation:record-pulse 1.3s infinite}@keyframes record-pulse{50%{opacity:.63}}
 .filter-video-thumb{display:grid;place-items:center;height:100%;min-height:45px;font-size:25px;background:linear-gradient(140deg,#553662,#211728)}
 @media(max-width:600px){.sealed-banner{padding:15px 13px;gap:11px}.sealed-info b{font-size:17px}.sealed-icon{width:40px;height:43px;font-size:22px}.sealed-decoration{display:none}.source-buttons{grid-template-columns:1fr 1fr;gap:8px}.source-buttons .button{min-height:54px}.photo-preview-box>video{max-height:267px}.viewer-media,.viewer-video{max-height:calc(96dvh - 200px)}}
+
+/* V1.03: keep navigation buttons tappable above fullscreen video players. */
+.viewer-arrow,.viewer-close{z-index:8}
+.viewer-media{touch-action:pan-y}
+.viewer-media{width:100%;flex:1;min-height:120px}
+.viewer-media>.viewer-photo,.viewer-media>.viewer-video{max-height:100%}
+
+/* V1.03: tactile Snapchat-style camera capture */
+.camera-viewport{position:relative;overflow:hidden;border-radius:18px;background:#090914}
+.camera-viewport video{display:block;width:100%;height:min(59dvh,560px);max-height:none;object-fit:cover;border-radius:18px}
+.camera-viewport .record-counter{position:absolute;top:12px;left:50%;transform:translateX(-50%);border-radius:100px;background:#ce294bd9;color:white;padding:9px 17px;z-index:2;white-space:nowrap;box-shadow:0 4px 16px #0005}
+.shutter{width:74px;height:74px;flex:0 0 74px;border-radius:50%;background:#f9f6ff;border:5px solid white;outline:3px solid #9beec1;outline-offset:3px;box-shadow:0 5px 22px #0007;display:grid;place-items:center;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:transform .13s ease,background .15s ease;}
+.shutter span{display:block;width:56px;height:56px;border:2px solid #bdb7e0;border-radius:50%;transition:all .16s ease}
+.shutter:active{transform:scale(.95)}
+.shutter.recording{background:#ff425e;outline-color:#ff7b8e;animation:record-pulse 1.2s ease-in-out infinite}
+.shutter.recording span{width:26px;height:26px;border-radius:7px;background:#fef0f2;border:0}
+.camera-hint{font-size:11px;letter-spacing:1.2px;text-align:center;margin:15px 0 7px;font-weight:800;color:var(--muted)}
+.camera-hint span{color:var(--orange);margin:0 9px}
+.native-camera-fallback{display:block;margin:0 auto 3px;color:var(--muted);font-size:12px;background:none;border:0;text-decoration:underline;text-underline-offset:3px;padding:10px}
+.camera-actions .button{max-width:110px;font-size:12px;padding:9px}
+/* High resolution SVG frame picker and overlay */
+.frame-list{align-items:stretch;gap:11px;padding:4px 2px 12px}
+.frame-item{width:96px;min-width:96px;flex:0 0 96px;white-space:normal;display:flex;flex-direction:column;align-items:center;gap:7px;padding:7px;border-radius:13px;transition:transform .15s ease,border-color .15s ease;background:var(--surface2)}
+.frame-item:active{transform:scale(.97)}
+.frame-item .frame-thumb{width:80px;height:80px;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,#685c82,#171423);border-radius:10px;overflow:hidden}
+.frame-item .frame-thumb img{width:100%;height:100%;display:block;object-fit:fill}
+.frame-none{color:#fcf2e4;font-size:30px}
+.frame-item b{font-size:10px;line-height:1.25;text-align:center;white-space:normal}
+.frame-item.active{box-shadow:0 0 0 1px var(--accent);background:var(--surface)}
+.video-thumb>.thumb-frame{position:absolute!important;inset:0;width:100%!important;height:100%!important;z-index:1;object-fit:fill!important;pointer-events:none}
+.photo-preview-box #edit-frame{object-fit:fill}
+@media(max-width:600px){.camera-viewport video{height:min(54dvh,510px)}.camera-actions{gap:18px}.camera-hint{font-size:9px;letter-spacing:.8px}.frame-item{flex-basis:86px;min-width:86px;width:86px}.frame-item .frame-thumb{width:72px;height:72px}}
+/* Toast messages must never block nearby camera/gallery controls. */
+.toast{pointer-events:none}
