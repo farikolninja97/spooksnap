@@ -62,3 +62,54 @@ body[data-theme="slime"]{--bg:#101a18;--surface:#172823;--surface2:#203a30;--tex
 @media(max-width:600px){.camera-viewport video{height:min(54dvh,510px)}.camera-actions{gap:18px}.camera-hint{font-size:9px;letter-spacing:.8px}.frame-item{flex-basis:86px;min-width:86px;width:86px}.frame-item .frame-thumb{width:72px;height:72px}}
 /* Toast messages must never block nearby camera/gallery controls. */
 .toast{pointer-events:none}
+
+
+/* V1.04 — camera-first, swipe-free full-screen capture and auto-loop previews. */
+.composer-dialog.camera-active{width:min(100%,480px);height:min(100dvh,860px);max-height:none;padding:0;overflow:hidden;display:flex;flex-direction:column;background:#080810;border-radius:22px}
+.composer-dialog.camera-active .dialog-top{display:none}
+.composer-dialog.camera-active .camera-stage{display:flex;flex:1;min-height:0;width:100%;background:#070711}
+.composer-dialog.camera-active .camera-stage[hidden]{display:none}
+.composer-dialog.camera-active .camera-viewport{flex:1;min-height:0;border-radius:0;position:relative;overflow:hidden}
+.composer-dialog.camera-active .camera-viewport video{width:100%;height:100%;max-height:none;object-fit:cover;border-radius:0;background:radial-gradient(circle at 40% 40%,#27283d,#080811)}
+.camera-top-actions{position:absolute;top:0;left:0;right:0;padding:calc(17px + env(safe-area-inset-top)) 19px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px;z-index:10;background:linear-gradient(#0008,transparent);pointer-events:none}
+.camera-top-actions>*{pointer-events:auto}
+.camera-brand{font:800 10px 'Space Grotesk',sans-serif;letter-spacing:1.4px;text-shadow:0 2px 9px #000}
+.camera-icon-button,.camera-gallery-button,.camera-side-button{color:#fff;border:1px solid #ffffff55;background:#16162499;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);cursor:pointer;font-weight:800}
+.camera-icon-button{width:45px;height:45px;border-radius:50%;font-size:17px}
+.camera-gallery-button{padding:12px 13px;border-radius:14px;display:flex;align-items:center;gap:8px;font-size:14px;min-height:46px;white-space:nowrap}
+.camera-gallery-button:active,.camera-icon-button:active,.camera-side-button:active{transform:scale(.95)}
+.camera-bottom-actions{position:absolute;bottom:0;left:0;right:0;z-index:9;display:flex;align-items:center;justify-content:space-around;gap:15px;padding:35px 24px calc(24px + env(safe-area-inset-bottom));background:linear-gradient(transparent,#000a 30%,#000c);}
+.camera-bottom-actions .camera-side-button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:16px;min-width:62px;min-height:58px;font-size:28px}
+.camera-side-button span{font-size:10px;letter-spacing:.4px}
+.camera-bottom-close{visibility:hidden}
+.camera-capture-group{display:flex;flex-direction:column;align-items:center;gap:13px}
+.camera-bottom-actions .shutter{width:82px;height:82px;flex:0 0 82px;box-shadow:0 3px 28px #0009}
+.camera-bottom-actions .shutter span{width:62px;height:62px}
+.camera-bottom-actions .shutter.recording span{width:26px;height:26px}
+.camera-hint{color:#fff;font-size:10px;margin:0;letter-spacing:1px;white-space:nowrap;text-shadow:0 2px 7px #000}
+.camera-bottom-actions button:disabled{opacity:.4;cursor:not-allowed}
+.camera-stage .record-counter{top:calc(87px + env(safe-area-inset-top));z-index:11}
+.camera-status{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;padding:100px 30px 180px;color:#fff;background:linear-gradient(155deg,#18192f,#080811)}
+.camera-status[hidden]{display:none}
+.camera-status-icon{font-size:44px;color:#ceff96}
+.camera-status strong{font-size:20px;font-weight:800}
+.camera-status small,.camera-status p{color:#c1c1d2;font-size:13px;line-height:1.55;max-width:310px;margin:0}
+.camera-status .button{min-width:180px;max-width:260px}
+.composer-dialog.camera-active .native-camera-fallback{display:none}
+.editor-audio{position:absolute;top:13px;right:13px;z-index:5;border:1px solid #ffffff6c;background:#10101abc;color:#fff;border-radius:99px;padding:9px 12px;font-size:12px;font-weight:800;backdrop-filter:blur(8px);cursor:pointer}
+.editor-audio[hidden]{display:none}
+#edit-video{max-height:min(60dvh,540px)}
+@media(max-width:650px){
+  #composer-modal:has(.composer-dialog.camera-active){padding:0}
+  .composer-dialog.camera-active{width:100vw;min-width:100vw;height:100dvh;max-height:100dvh;border:0;border-radius:0}
+  .camera-top-actions{padding-left:16px;padding-right:16px}
+  .camera-brand{font-size:9px;letter-spacing:.6px}
+  .camera-gallery-button{padding:11px 12px}
+  .camera-bottom-actions{padding-left:13px;padding-right:13px;padding-bottom:calc(30px + env(safe-area-inset-bottom))}
+  .camera-bottom-actions .shutter{width:78px;height:78px;flex-basis:78px}
+  .camera-bottom-actions .shutter span{width:58px;height:58px}
+  .camera-bottom-actions .shutter.recording span{width:26px;height:26px}
+}
+@media(max-height:610px){.camera-bottom-actions{padding-top:15px;padding-bottom:calc(10px + env(safe-area-inset-bottom))}.camera-capture-group{gap:5px}}
+
+#edit-video[hidden],#edit-photo[hidden]{display:none!important}

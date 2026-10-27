@@ -1,4 +1,4 @@
-/* Halloween Snap v1.03 — static Github Pages + Supabase.
+/* Halloween Snap v1.04 — static Github Pages + Supabase.
    Public browser config only. Never embed a service-role key. */
 (() => {
   'use strict';
@@ -27,7 +27,7 @@
   ];
   const state = {
     db:null,user:null,party:null,me:null,members:[],photos:[],likes:[],signed:new Map(),
-    channel:null,poll:null,loading:false,demo:false,demoSealed:[],pending:{count:0,next:null},composer:{file:null,url:null,img:null,video:null,kind:'image',duration:0,filter:'none',frame:'none',stream:null,facing:'environment',busy:false,recorder:null,recordTimer:null,recordDeadline:null,recordStarted:0,cameraMode:'image',cancelRecording:false,holdTimer:null,pressed:false,pressStarted:0,suppressClick:false,captureBusy:false},
+    channel:null,poll:null,loading:false,demo:false,demoSealed:[],pending:{count:0,next:null},composer:{file:null,url:null,img:null,video:null,kind:'image',duration:0,filter:'none',frame:'none',stream:null,facing:'environment',busy:false,recorder:null,recordTimer:null,recordDeadline:null,recordStarted:0,cameraMode:'image',cancelRecording:false,holdTimer:null,pressed:false,pressStarted:0,suppressClick:false,captureBusy:false,cameraRequestId:0},
     accessMode:'create',viewIds:[],viewIndex:0,viewerMediaId:null,viewerMediaUrl:null,pendingLikes:new Set(),localTheme:null
   };
   const escapeHTML = v => String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -47,7 +47,7 @@
   async function hideModal(name, force=false) {
     if(name==='composer' && state.composer.busy && !force){toast('Your snap is still uploading. Please finish before closing.');return;}
     $(name+'-modal').hidden=true;
-    if (name==='composer') { await stopCamera(); clearComposer(); }
+    if (name==='composer') { await stopCamera(); clearComposer(); setCameraLayout(false); }
     if (name==='viewer') { state.viewerMediaId=null;state.viewerMediaUrl=null; $('viewer-video').pause(); $('viewer-video').removeAttribute('src'); $('viewer-video').load(); }
     if (!Array.from(document.querySelectorAll('.modal')).some(el=>!el.hidden)) document.body.style.overflow='';
   }
@@ -411,19 +411,35 @@
     $('edit-frame').hidden=c.frame==='none';
     if(c.frame!=='none')$('edit-frame').src=frameDataURL(c.frame);
   }
+  function setCameraLayout(active) {
+    $('composer-modal').querySelector('.composer-dialog').classList.toggle('camera-active',active);
+  }
+  function setCameraStatus(status,message='') {
+    const loading=status==='loading',failed=status==='failed';
+    $('camera-loading').hidden=!loading;
+    $('camera-fallback').hidden=!failed;
+    $('camera-shutter').disabled=status!=='ready';
+    $('camera-flip').disabled=status!=='ready';
+    if(failed)$('camera-error').textContent=message;
+  }
   function openComposer() {
     if(!state.party){toast('Join a party before posting.');return;}
-    $('source-choice').hidden=false;$('camera-stage').hidden=true;$('edit-stage').hidden=true;
+    clearComposer();
+    $('source-choice').hidden=true;$('camera-stage').hidden=false;$('edit-stage').hidden=true;
     $('photo-caption').value='';$('upload-progress').textContent='';
     state.composer.filter='none';state.composer.frame='none';state.composer.facing='environment';
+    setCameraLayout(true);
+    setCameraStatus('loading');
     showModal('composer');
+    startCamera();
   }
   function clearComposer() {
     const c=state.composer;
     if(c.url){URL.revokeObjectURL(c.url);c.url=null;}
     c.img=null;c.video=null;c.file=null;c.kind='image';c.duration=0;c.busy=false;c.captureBusy=false;
     $('edit-video').pause();$('edit-video').removeAttribute('src');$('edit-video').load();
-    $('gallery-file').value='';$('camera-file').value='';$('video-file').value='';$('capture-video-file').value='';
+    $('editor-audio').hidden=true;
+    $('gallery-file').value='';$('camera-file').value='';$('video-file').value='';$('capture-video-file').value='';$('media-file').value='';
   }
   async function readVideoMetadata(url) {
     const v=document.createElement('video');v.preload='metadata';v.muted=true;v.playsInline=true;
@@ -466,11 +482,21 @@
       if(state.composer.url)URL.revokeObjectURL(state.composer.url);
       Object.assign(state.composer,{url,img,video,file,kind:isVideoFile?'video':'image',duration});
       $('source-choice').hidden=true;$('camera-stage').hidden=true;$('edit-stage').hidden=false;
+      setCameraLayout(false);
       $('edit-photo').hidden=isVideoFile;$('edit-video').hidden=!isVideoFile;
-      if(isVideoFile){$('edit-video').src=url;$('edit-video').load();}else{$('edit-video').pause();$('edit-video').removeAttribute('src');$('edit-photo').src=url;}
-      $('editor-kind').textContent=isVideoFile?`VIDEO • ${Math.round(duration)}s / ${VIDEO_MAX_SECONDS}s`:'PHOTO';
+      const editVideo=$('edit-video');
+      $('editor-audio').hidden=!isVideoFile;
+      if(isVideoFile){
+        editVideo.muted=true;editVideo.loop=true;editVideo.autoplay=true;
+        editVideo.src=url;editVideo.load();
+        $('editor-audio').textContent='🔇 Sound off';
+        const playPreview=()=>{if(editVideo.src===url && !$('edit-stage').hidden)editVideo.play().catch(()=>{});};
+        editVideo.addEventListener('loadeddata',playPreview,{once:true});
+        playPreview();
+      }else{editVideo.pause();editVideo.removeAttribute('src');$('edit-photo').src=url;}
+      $('editor-kind').textContent=isVideoFile?`VIDEO • ${Math.round(duration)}s / ${VIDEO_MAX_SECONDS}s • LOOPING`:'PHOTO';
       $('video-effects-note').hidden=!isVideoFile;
-      $('editor-back').textContent=isVideoFile?'← Change video':'← Change photo';
+      $('editor-back').textContent='↻ Retake';
       renderFilterOptions();
     }catch(e){URL.revokeObjectURL(url);toast(e.message);}
   }
@@ -481,40 +507,52 @@
     if (e?.name === 'NotReadableError') return 'Camera busy in another app. Close other camera apps and try again.';
     return 'Live camera unavailable on this device. You can still upload or use your phone’s camera picker.';
   }
-  async function startCamera(mode='image') {
+  async function startCamera() {
+    const c=state.composer;
+    await stopCamera();
+    const requestId=c.cameraRequestId;
+    $('source-choice').hidden=true;$('camera-stage').hidden=false;$('edit-stage').hidden=true;
+    setCameraLayout(true);
+    setCameraStatus('loading');
     if(!navigator.mediaDevices?.getUserMedia || !window.isSecureContext){
-      toast(cameraFailureMessage(null));
+      setCameraStatus('failed',cameraFailureMessage(null));
       return;
     }
-    const c=state.composer;
+    const video={facingMode:{ideal:c.facing},width:{ideal:1280},height:{ideal:1920}};
+    let stream;
     try {
-      await stopCamera();
-      const video={facingMode:{ideal:c.facing},width:{ideal:1280},height:{ideal:1920}};
-      let stream;
+      let noMicrophone=false;
       try {stream=await navigator.mediaDevices.getUserMedia({video,audio:true});}
       catch(e) {
-        // Some users allow video but not the microphone. Photos should still work.
-        if(e.name==='NotAllowedError'||e.name==='NotFoundError'||e.name==='OverconstrainedError'){
+        // Allow still photos even when the microphone prompt was denied.
+        if(['NotAllowedError','PermissionDeniedError','NotFoundError','OverconstrainedError'].includes(e.name)){
           stream=await navigator.mediaDevices.getUserMedia({video,audio:false});
-          toast('Camera ready. Microphone is unavailable; recorded videos may have no sound.');
-        } else throw e;
+          noMicrophone=true;
+        }else throw e;
       }
-      c.stream=stream;c.cameraMode=mode;
+      // A user may close the composer while an OS-level permission prompt is open.
+      if(requestId!==c.cameraRequestId || $('composer-modal').hidden){
+        stream.getTracks().forEach(t=>t.stop());return;
+      }
+      c.stream=stream;c.cameraMode='image';
       const preview=$('camera-preview');preview.srcObject=stream;
-      $('source-choice').hidden=true;$('camera-stage').hidden=false;$('edit-stage').hidden=true;
+      preview.muted=true;
       $('record-counter').hidden=true;
-      $('camera-shutter').disabled=true;
-      $('camera-shutter').setAttribute('aria-label','Tap to take a photo. Press and hold to record video.');
       await preview.play();
-      $('camera-shutter').disabled=false;
+      if(requestId!==c.cameraRequestId || $('composer-modal').hidden){return;}
+      setCameraStatus('ready');
+      if(noMicrophone)toast('Camera ready. Videos may record without audio; allow microphone access to include sound.');
     }catch(e){
-      await stopCamera();
-      $('camera-stage').hidden=true;$('source-choice').hidden=false;
-      toast(cameraFailureMessage(e));
+      if(stream)stream.getTracks().forEach(t=>t.stop());
+      if(requestId!==c.cameraRequestId || $('composer-modal').hidden)return;
+      c.stream=null;
+      $('camera-preview').srcObject=null;
+      setCameraStatus('failed',cameraFailureMessage(e));
     }
   }
   async function stopCamera() {
     const c=state.composer;
+    c.cameraRequestId++; // Cancel pending getUserMedia permission requests.
     clearTimeout(c.holdTimer);c.holdTimer=null;c.pressed=false;
     if(c.recordTimer){clearInterval(c.recordTimer);c.recordTimer=null;}
     if(c.recordDeadline){clearTimeout(c.recordDeadline);c.recordDeadline=null;}
@@ -777,13 +815,27 @@
     const shutter=$('camera-shutter');
     shutter.addEventListener('pointerdown',capturePointerDown);
     shutter.addEventListener('pointerup',capturePointerUp);
-    shutter.addEventListener('pointercancel',capturePointerUp);
+    shutter.addEventListener('pointercancel',e=>{const c=state.composer;c.pressed=false;clearTimeout(c.holdTimer);c.holdTimer=null;if(c.recorder?.state==='recording')stopRecording();});
     // Keyboard accessibility: Enter/Space clicks take photos. Pointer taps are handled on release.
     shutter.addEventListener('click',e=>{if(e.detail===0)snapCamera();});
+    $('camera-gallery').addEventListener('click',()=>$('media-file').click());
+    $('media-file').addEventListener('change',e=>{const file=e.target.files?.[0];e.target.value='';setSource(file);});
+    $('camera-retry').addEventListener('click',startCamera);
+    $('camera-phone-photo').addEventListener('click',()=>$('camera-file').click());
     $('camera-native-video').addEventListener('click',()=>$('capture-video-file').click());
-    $('camera-flip').addEventListener('click',async()=>{state.composer.facing=state.composer.facing==='environment'?'user':'environment';await startCamera(state.composer.cameraMode);});
-    $('camera-cancel').addEventListener('click',async()=>{await stopCamera();$('camera-stage').hidden=true;$('source-choice').hidden=false;});
-    $('editor-back').addEventListener('click',()=>{$('edit-stage').hidden=true;$('source-choice').hidden=false;clearComposer();});
+    $('camera-flip').addEventListener('click',async()=>{state.composer.facing=state.composer.facing==='environment'?'user':'environment';await startCamera();});
+    $('camera-exit').addEventListener('click',()=>hideModal('composer'));
+    $('camera-cancel').addEventListener('click',()=>hideModal('composer'));
+    $('editor-back').addEventListener('click',()=>{
+      if(state.composer.busy)return;
+      clearComposer();$('edit-stage').hidden=true;$('camera-stage').hidden=false;
+      setCameraLayout(true);startCamera();
+    });
+    $('editor-audio').addEventListener('click',()=>{
+      const v=$('edit-video');v.muted=!v.muted;
+      $('editor-audio').textContent=v.muted?'🔇 Sound off':'🔊 Sound on';
+      if(v.paused)v.play().catch(()=>{});
+    });
     $('publish-photo').addEventListener('click',publishPhoto);
     $('filter-list').addEventListener('click',e=>{const b=e.target.closest('[data-filter]');if(b){state.composer.filter=b.dataset.filter;renderFilterOptions();}});
     $('frame-list').addEventListener('click',e=>{const b=e.target.closest('[data-frame]');if(b){state.composer.frame=b.dataset.frame;renderFilterOptions();}});
