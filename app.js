@@ -1,4 +1,4 @@
-/* Halloween Snap v1.00 — static Github Pages + Supabase.
+/* Halloween Snap v1.01 — static Github Pages + Supabase.
    Public browser config only. Never embed a service-role key. */
 (() => {
   'use strict';
@@ -15,6 +15,9 @@
     {id:'graveyard',label:'Graveyard',css:'sepia(.35) hue-rotate(105deg) saturate(.83) contrast(1.28)',icon:'🪦'},
     {id:'noir',label:'Midnight',css:'grayscale(1) contrast(1.35)',icon:'🌙'}
   ];
+  const VIDEO_UPLOAD_MAX_SECONDS = 300; // Snapchat imported-video limit
+  const VIDEO_RECORD_MAX_SECONDS = 180; // Snapchat camera video limit
+  const VIDEO_MAX_BYTES = 50*1024*1024; // Supabase Free storage object cap
   const FRAMES = [{id:'none',label:'No frame',icon:'◯'},{id:'bats',label:'🦇 Bats'},{id:'web',label:'🕸 Webs'},{id:'pumpkins',label:'🎃 Pumpkins'},{id:'ghosts',label:'👻 Ghosts'}];
   const THEMES = [
     {id:'haunted',label:'Haunted After Dark',description:'Electric moonlight',background:'linear-gradient(135deg,#151421 55%,#d5f76f)'},
@@ -24,7 +27,7 @@
   ];
   const state = {
     db:null,user:null,party:null,me:null,members:[],photos:[],likes:[],signed:new Map(),
-    channel:null,poll:null,loading:false,demo:false,composer:{file:null,url:null,img:null,filter:'none',frame:'none',stream:null,facing:'environment',busy:false},
+    channel:null,poll:null,loading:false,demo:false,demoSealed:[],pending:{count:0,next:null},composer:{file:null,url:null,img:null,video:null,kind:'image',duration:0,filter:'none',frame:'none',stream:null,facing:'environment',busy:false,recorder:null,recordTimer:null,recordStarted:0,cameraMode:'image',cancelRecording:false},
     accessMode:'create',viewIds:[],viewIndex:0,localTheme:null
   };
   const escapeHTML = v => String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -44,6 +47,7 @@
   async function hideModal(name) {
     $(name+'-modal').hidden=true;
     if (name==='composer') { await stopCamera(); clearComposer(); }
+    if (name==='viewer') { $('viewer-video').pause(); $('viewer-video').removeAttribute('src'); $('viewer-video').load(); }
     if (!Array.from(document.querySelectorAll('.modal')).some(el=>!el.hidden)) document.body.style.overflow='';
   }
   function stopLive() {
@@ -147,7 +151,7 @@
     ]);
     if(roomError)throw roomError;if(meError)throw meError;
     stopLive();state.demo=false;state.party=room;state.me=me;
-    state.photos=[];state.likes=[];state.members=[];state.signed.clear();
+    state.photos=[];state.likes=[];state.members=[];state.pending={count:0,next:null};state.demoSealed=[];state.signed.clear();
     state.localTheme=localStorage.getItem('halloween_snap_theme_'+id);
     applyTheme(state.localTheme||room.theme);
     setPartyUrl(code||room.code);
@@ -167,22 +171,24 @@
     renderThemes();
   }
   function goHome() {
-    stopLive();if(state.demo&&state.user?.id==='demo-user')state.user=null;state.party=null;state.me=null;state.photos=[];state.likes=[];state.members=[];state.demo=false;state.signed.clear();
+    stopLive();if(state.demo&&state.user?.id==='demo-user')state.user=null;state.party=null;state.me=null;state.photos=[];state.likes=[];state.members=[];state.pending={count:0,next:null};state.demoSealed=[];state.demo=false;state.signed.clear();
     setPartyUrl(null);$('landing-view').hidden=false;$('party-view').hidden=true;
     $('top-invite').hidden=true;$('mobile-bar').hidden=true;$('demo-indicator').hidden=true;
     applyTheme('haunted');window.scrollTo({top:0,behavior:'instant'});
   }
   function demoParty() {
-    stopLive();state.demo=true;
+    stopLive();state.demo=true;state.demoSealed=[];
     state.user=state.user||{id:'demo-user'};
     state.party={id:'demo',title:'THE HAUNT 2026',theme:'haunted',code:'DEMO',owner_id:state.user.id};state.me={user_id:state.user.id,display_name:localStorage.getItem('halloween_snap_name')||'You'};
     state.members=[{user_id:state.user.id,display_name:state.me.display_name},{user_id:'demo-a',display_name:'Alex'},{user_id:'demo-b',display_name:'Jordan'},{user_id:'demo-c',display_name:'Sam'}];
     state.photos=[
-      {id:'demo-1',room_id:'demo',author_id:'demo-a',author_name:'Alex',storage_path:'',localUrl:'assets/demo-pumpkin.svg',filter_name:'none',frame_name:'none',caption:'Came for the candy, stayed for the chaos 🎃',created_at:new Date(Date.now()-180000).toISOString()},
-      {id:'demo-2',room_id:'demo',author_id:'demo-b',author_name:'Jordan',storage_path:'',localUrl:'assets/demo-ghost.svg',filter_name:'none',frame_name:'none',caption:'Unidentified party guest 👻',created_at:new Date(Date.now()-360000).toISOString()},
-      {id:'demo-3',room_id:'demo',author_id:'demo-c',author_name:'Sam',storage_path:'',localUrl:'assets/demo-haunt.svg',filter_name:'none',frame_name:'none',caption:'The house has entered its villain era',created_at:new Date(Date.now()-540000).toISOString()}
+      {id:'demo-1',room_id:'demo',author_id:'demo-a',author_name:'Alex',storage_path:'',localUrl:'assets/demo-pumpkin.svg',filter_name:'none',frame_name:'none',caption:'Came for the candy, stayed for the chaos 🎃',created_at:new Date(Date.now()-14*3600000).toISOString()},
+      {id:'demo-2',room_id:'demo',author_id:'demo-b',author_name:'Jordan',storage_path:'',localUrl:'assets/demo-ghost.svg',filter_name:'none',frame_name:'none',caption:'Unidentified party guest 👻',created_at:new Date(Date.now()-15*3600000).toISOString()},
+      {id:'demo-3',room_id:'demo',author_id:'demo-c',author_name:'Sam',storage_path:'',localUrl:'assets/demo-haunt.svg',filter_name:'none',frame_name:'none',caption:'The house has entered its villain era',created_at:new Date(Date.now()-16*3600000).toISOString()},
+      {id:'demo-4',room_id:'demo',author_id:'demo-b',author_name:'Jordan',storage_path:'',localUrl:'assets/demo-video.mp4',media_kind:'video',duration_seconds:5,filter_name:'vampire',frame_name:'bats',caption:'Caught on camera 🎬',created_at:new Date(Date.now()-17*3600000).toISOString()}
     ];
     state.likes=[{photo_id:'demo-1',user_id:'demo-b'},{photo_id:'demo-1',user_id:'demo-c'},{photo_id:'demo-2',user_id:'demo-a'}];
+    state.pending={count:2,next:new Date(Date.now()+78*60000).toISOString()};
     state.localTheme=null;applyTheme('haunted');showPartyView();renderGallery();renderCrew();
   }
   function subscribeParty(id) {
@@ -202,14 +208,17 @@
     if(state.loading||!state.party)return;
     const loadedRoom=state.party.id;state.loading=true;
     try {
-      const [roomRes,membersRes,photoRes]=await Promise.all([
+      const [roomRes,membersRes,photoRes,pendingRes]=await Promise.all([
         state.db.from('halloween_rooms').select('*').eq('id',loadedRoom).single(),
         state.db.from('halloween_members').select('user_id,display_name,joined_at').eq('room_id',loadedRoom).order('joined_at',{ascending:true}),
-        state.db.from('halloween_photos').select('*').eq('room_id',loadedRoom).order('created_at',{ascending:false}).limit(500)
+        state.db.from('halloween_photos').select('*').eq('room_id',loadedRoom).order('created_at',{ascending:false}).limit(500),
+        state.db.rpc('halloween_pending_status',{p_room_id:loadedRoom})
       ]);
-      for(const r of [roomRes,membersRes,photoRes])if(r.error)throw r.error;
+      for(const r of [roomRes,membersRes,photoRes,pendingRes])if(r.error)throw r.error;
       if(state.party?.id!==loadedRoom)return;
       state.party=roomRes.data;state.members=membersRes.data||[];state.photos=photoRes.data||[];
+      const pend=Array.isArray(pendingRes.data)?pendingRes.data[0]:pendingRes.data;
+      state.pending={count:Number(pend?.pending_count||0),next:pend?.next_release_at||null};
       $('party-title').textContent=state.party.title;
       if(!state.localTheme)applyTheme(state.party.theme);
       const ids=state.photos.map(p=>p.id);
@@ -243,15 +252,35 @@
     if(sort==='loved')list.sort((a,b)=>countLikes(b.id)-countLikes(a.id)||new Date(b.created_at)-new Date(a.created_at));
     return list;
   }
+  function isVideo(p) { return p?.media_kind==='video'; }
+  function mediaFilter(p) { return (FILTERS.find(f=>f.id===p?.filter_name)||FILTERS[0]).css; }
+  function countdown(value) {
+    if(!value)return 'soon';
+    const secs=Math.max(0,Math.ceil((new Date(value).getTime()-Date.now())/1000));
+    if(secs<=0)return 'any moment';
+    const hours=Math.floor(secs/3600), mins=Math.floor((secs%3600)/60);
+    return hours?`${hours}h ${mins}m`:`${Math.max(1,mins)}m`;
+  }
+  function renderPending() {
+    const n=state.pending.count;
+    $('sealed-banner').hidden=n===0;
+    $('sealed-count').textContent=n;
+    $('sealed-count-label').textContent=n===1?'snap sealed':'snaps sealed';
+    $('sealed-until').textContent=state.pending.next?'Next reveal in '+countdown(state.pending.next):'Hidden for 12 hours after upload';
+  }
   function renderGallery() {
-    $('stat-photos').textContent=state.photos.length+(state.photos.length===500?'+':'');
+    $('stat-photos').textContent=(state.photos.length+state.pending.count)+(state.photos.length===500?'+':'');
     $('stat-people').textContent=state.members.length;
+    renderPending();
     const photos=visiblePhotos();
     $('gallery-empty').hidden=photos.length!==0;
+    $('empty-message').textContent=state.pending.count?'The next photos and videos are still sealed. Come back when the countdown ends!':'Be the first one to drop a snap. The party starts with you.';
     const grid=$('gallery-grid');
     grid.innerHTML=photos.map(p=>{
       const url=getPhotoUrl(p),label=(FILTERS.find(f=>f.id===p.filter_name)||FILTERS[0]).label;
-      return `<article class="photo-card"><button class="photo-tap" type="button" data-action="view" data-id="${escapeHTML(p.id)}" aria-label="Open ${escapeHTML(p.author_name)}'s photo"><img src="${escapeHTML(url)}" alt="${escapeHTML(p.caption||'A Halloween party photo by '+p.author_name)}" loading="lazy"><span class="photo-filter-label">✦ ${escapeHTML(label.toUpperCase())}</span></button><div class="photo-footer"><div class="photo-byline"><span><span class="photo-avatar">${escapeHTML(initial(p.author_name))}</span><b>${escapeHTML(p.author_name)}</b></span><time>${escapeHTML(dateLabel(p.created_at))}</time></div>${p.caption?`<p class="photo-caption">${escapeHTML(p.caption)}</p>`:''}<div class="photo-actions"><button class="heart-button ${didLike(p.id)?'liked':''}" data-action="like" data-id="${escapeHTML(p.id)}" type="button" aria-label="Like photo">${didLike(p.id)?'♥':'♡'} <span>${countLikes(p.id)}</span></button><button class="photo-open" data-action="view" data-id="${escapeHTML(p.id)}" type="button" aria-label="View photo">VIEW ↗</button></div></div></article>`;
+      const video=isVideo(p);
+      const media=video?`<div class="video-thumb" style="filter:${escapeHTML(mediaFilter(p))}"><video src="${escapeHTML(url)}#t=0.01" preload="metadata" muted playsinline></video><span class="video-play-icon">▶</span><span class="video-duration">${Math.round(p.duration_seconds||0)}s</span></div>`:`<img src="${escapeHTML(url)}" alt="${escapeHTML(p.caption||'A Halloween party photo by '+p.author_name)}" loading="lazy">`;
+      return `<article class="photo-card"><button class="photo-tap" type="button" data-action="view" data-id="${escapeHTML(p.id)}" aria-label="Open ${escapeHTML(p.author_name)}'s ${video?'video':'photo'}">${media}<span class="photo-filter-label">✦ ${escapeHTML(video?'VIDEO • '+label.toUpperCase():label.toUpperCase())}</span></button><div class="photo-footer"><div class="photo-byline"><span><span class="photo-avatar">${escapeHTML(initial(p.author_name))}</span><b>${escapeHTML(p.author_name)}</b></span><time>${escapeHTML(dateLabel(p.created_at))}</time></div>${p.caption?`<p class="photo-caption">${escapeHTML(p.caption)}</p>`:''}<div class="photo-actions"><button class="heart-button ${didLike(p.id)?'liked':''}" data-action="like" data-id="${escapeHTML(p.id)}" type="button" aria-label="Like snap">${didLike(p.id)?'♥':'♡'} <span>${countLikes(p.id)}</span></button><button class="photo-open" data-action="view" data-id="${escapeHTML(p.id)}" type="button" aria-label="View snap">VIEW ↗</button></div></div></article>`;
     }).join('');
     if(!$('viewer-modal').hidden)state.viewIds=photos.map(p=>p.id);
   }
@@ -284,8 +313,14 @@
   function renderViewer() {
     const id=state.viewIds[state.viewIndex];const p=state.photos.find(p=>p.id===id);
     if(!p){hideModal('viewer');return;}
-    $('viewer-photo').src=getPhotoUrl(p);
-    $('viewer-photo').alt=p.caption||'Photo by '+p.author_name;
+    const video=isVideo(p);
+    const player=$('viewer-video');
+    player.pause();player.removeAttribute('src');player.load();
+    $('viewer-photo').hidden=video;player.hidden=!video;
+    $('viewer-media-frame').hidden=!video||p.frame_name==='none';
+    if(p.frame_name!=='none')$('viewer-media-frame').src=frameDataURL(p.frame_name);
+    $('viewer-photo').style.filter='none';
+    if(video){player.src=getPhotoUrl(p);player.style.filter=mediaFilter(p);player.load();}else{$('viewer-photo').src=getPhotoUrl(p);$('viewer-photo').alt=p.caption||'Photo by '+p.author_name;}
     $('viewer-author').textContent='BY '+p.author_name.toUpperCase()+' • '+dateLabel(p.created_at);
     $('viewer-heading').textContent=p.caption||'One for the memory books ✳';
     $('viewer-like').innerHTML=(didLike(id)?'♥':'♡')+' <span>'+countLikes(id)+'</span>';
@@ -299,13 +334,14 @@
     try {
       const response=await fetch(getPhotoUrl(p));if(!response.ok)throw new Error('File unavailable');
       const blob=await response.blob();const url=URL.createObjectURL(blob);
-      const a=document.createElement('a');a.href=url;a.download='Halloween-Snap-'+id.slice(0,8)+(blob.type==='image/svg+xml'?'.svg':'.jpg');document.body.appendChild(a);a.click();a.remove();
-      setTimeout(()=>URL.revokeObjectURL(url),5000);toast('Photo saved!');
-    }catch(e){toast('Download unavailable. Try opening the photo in a new tab.');}
+      const extension=isVideo(p)?((p.storage_path.match(/\.(mp4|webm|mov)$/)||[])[1]||'mp4'):(blob.type==='image/svg+xml'?'svg':'jpg');
+      const a=document.createElement('a');a.href=url;a.download='Halloween-Snap-'+id.slice(0,8)+'.'+extension;document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),5000);toast('Snap saved!'+(isVideo(p)?' Video effects are preview-only.':''));
+    }catch(e){toast('Download unavailable. Try opening the snap in a new tab.');}
   }
   async function deleteView() {
     const id=state.viewIds[state.viewIndex];const p=state.photos.find(p=>p.id===id);if(!p)return;
-    if(!window.confirm('Permanently delete this photo for everyone?'))return;
+    if(!window.confirm('Permanently delete this snap for everyone?'))return;
     try {
       if(!state.demo) {
         // Storage policy checks the still-present photo record; delete image first.
@@ -315,7 +351,7 @@
         if(row.error)throw row.error;
       }
       state.photos=state.photos.filter(x=>x.id!==id);state.likes=state.likes.filter(x=>x.photo_id!==id);
-      await hideModal('viewer');renderGallery();toast('Photo deleted.');
+      await hideModal('viewer');renderGallery();toast('Snap deleted.');
     }catch(e){toast('Could not delete photo: '+e.message);}
   }
   function showShare() {
@@ -356,19 +392,20 @@
   }
   const frameDataURL=frame=>'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(frameSVG(frame));
   function renderFilterOptions() {
-    if(!state.composer.img)return;
-    const selected=state.composer.filter;
-    $('filter-list').innerHTML=FILTERS.map(f=>`<button type="button" class="filter-item ${f.id===selected?'active':''}" data-filter="${f.id}"><span class="filter-thumb"><img alt="" src="${escapeHTML(state.composer.url)}" style="filter:${f.css}"></span><b>${escapeHTML(f.label)}</b></button>`).join('');
-    $('frame-list').innerHTML=FRAMES.map(f=>`<button type="button" class="frame-item ${f.id===state.composer.frame?'active':''}" data-frame="${f.id}">${escapeHTML(f.label)}</button>`).join('');
+    if(!state.composer.url)return;
+    const selected=state.composer.filter,c=state.composer;
+    $('filter-list').innerHTML=FILTERS.map(f=>`<button type="button" class="filter-item ${f.id===selected?'active':''}" data-filter="${f.id}"><span class="filter-thumb">${c.kind==='video'?`<span class="filter-video-thumb" style="filter:${f.css}">🎬</span>`:`<img alt="" src="${escapeHTML(c.url)}" style="filter:${f.css}">`}</span><b>${escapeHTML(f.label)}</b></button>`).join('');
+    $('frame-list').innerHTML=FRAMES.map(f=>`<button type="button" class="frame-item ${f.id===c.frame?'active':''}" data-frame="${f.id}">${escapeHTML(f.label)}</button>`).join('');
     updateComposerPreview();
   }
   function updateComposerPreview() {
-    const f=FILTERS.find(x=>x.id===state.composer.filter)||FILTERS[0];
-    $('edit-photo').style.filter=f.css;
+    const c=state.composer;
+    const f=FILTERS.find(x=>x.id===c.filter)||FILTERS[0];
+    $('edit-photo').style.filter=f.css;$('edit-video').style.filter=f.css;
     $('chosen-filter').textContent=f.label.toUpperCase();
-    $('chosen-frame').textContent=(FRAMES.find(x=>x.id===state.composer.frame)||FRAMES[0]).label.toUpperCase();
-    $('edit-frame').hidden=state.composer.frame==='none';
-    if(state.composer.frame!=='none')$('edit-frame').src=frameDataURL(state.composer.frame);
+    $('chosen-frame').textContent=(FRAMES.find(x=>x.id===c.frame)||FRAMES[0]).label.toUpperCase();
+    $('edit-frame').hidden=c.frame==='none';
+    if(c.frame!=='none')$('edit-frame').src=frameDataURL(c.frame);
   }
   function openComposer() {
     if(!state.party){toast('Join a party before posting.');return;}
@@ -378,39 +415,85 @@
     showModal('composer');
   }
   function clearComposer() {
-    if(state.composer.url){URL.revokeObjectURL(state.composer.url);state.composer.url=null;}
-    state.composer.img=null;state.composer.file=null;state.composer.busy=false;
-    $('gallery-file').value='';$('camera-file').value='';
+    const c=state.composer;
+    if(c.url){URL.revokeObjectURL(c.url);c.url=null;}
+    c.img=null;c.video=null;c.file=null;c.kind='image';c.duration=0;c.busy=false;
+    $('edit-video').pause();$('edit-video').removeAttribute('src');$('edit-video').load();
+    $('gallery-file').value='';$('camera-file').value='';$('video-file').value='';$('capture-video-file').value='';
+  }
+  async function readVideoMetadata(url) {
+    const v=document.createElement('video');v.preload='metadata';v.muted=true;v.playsInline=true;
+    try {
+      v.src=url;
+      await new Promise((resolve,reject)=>{v.onloadedmetadata=resolve;v.onerror=()=>reject(new Error('This video format is not supported in your browser. Try MP4/H.264.'));});
+      if(!Number.isFinite(v.duration)){ // Some mobile-recorded WebM videos require a seek for duration.
+        v.currentTime=1e10;
+        await new Promise(resolve=>{v.onseeked=resolve;setTimeout(resolve,1800);});
+      }
+      if(!(v.duration>0&&Number.isFinite(v.duration)))throw new Error('Cannot read video duration. Convert it to MP4 and try again.');
+      if(v.duration>VIDEO_UPLOAD_MAX_SECONDS+0.5)throw new Error('Videos must be 5 minutes (300 seconds) or less. Trim it and try again.');
+      return {duration:v.duration,width:v.videoWidth||720,height:v.videoHeight||1280};
+    }finally {v.removeAttribute('src');v.load();}
+  }
+  function getVideoType(file) {
+    const type=(file.type||'').split(';')[0].toLowerCase();
+    if(type==='video/mp4'||type==='video/quicktime'||type==='video/webm')return type;
+    const ext=(file.name||'').split('.').pop().toLowerCase();
+    return ({mp4:'video/mp4',mov:'video/quicktime',webm:'video/webm'})[ext]||null;
   }
   async function setSource(file) {
     if(!file)return;
-    if(file.size>25*1024*1024){toast('This original image is too large (25 MB max).');return;}
-    if(file.type && !file.type.startsWith('image/') && !/\.(heic|heif)$/i.test(file.name||'')){toast('Please choose an image file.');return;}
-    const url=URL.createObjectURL(file),img=new Image();
+    const isVideoFile=file.type.startsWith('video/')||/\.(mp4|mov|webm)$/i.test(file.name||'');
+    if(isVideoFile){
+      if(file.size>VIDEO_MAX_BYTES){toast('Video is over 50 MB. Trim or compress it before uploading.');return;}
+    }else if(file.size>25*1024*1024){toast('This original image is too large (25 MB max).');return;}
+    if(!isVideoFile && file.type && !file.type.startsWith('image/')&&!/\.(heic|heif)$/i.test(file.name||'')){toast('Choose an image or MP4/MOV/WebM video.');return;}
+    const contentType=isVideoFile?getVideoType(file):null;
+    if(isVideoFile&&!contentType){toast('Video format not supported. Choose MP4, MOV, or WebM.');return;}
+    const url=URL.createObjectURL(file);
     try {
-      await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('This photo format could not be opened by your browser.'));img.src=url;});
-      if(!img.naturalWidth||!img.naturalHeight)throw new Error('Image has no dimensions.');
-      if(state.composer.url)URL.revokeObjectURL(state.composer.url);
-      state.composer.url=url;state.composer.img=img;state.composer.file=file;
+      let img=null,video=null,duration=0;
+      if(isVideoFile){video=await readVideoMetadata(url);duration=video.duration;}
+      else {
+        img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('This photo format could not be opened by your browser.'));img.src=url;});
+        if(!img.naturalWidth||!img.naturalHeight)throw new Error('Image has no dimensions.');
+      }
       await stopCamera();
+      if(state.composer.url)URL.revokeObjectURL(state.composer.url);
+      Object.assign(state.composer,{url,img,video,file,kind:isVideoFile?'video':'image',duration});
       $('source-choice').hidden=true;$('camera-stage').hidden=true;$('edit-stage').hidden=false;
-      $('edit-photo').src=url;renderFilterOptions();
+      $('edit-photo').hidden=isVideoFile;$('edit-video').hidden=!isVideoFile;
+      if(isVideoFile){$('edit-video').src=url;$('edit-video').load();}else{$('edit-video').pause();$('edit-video').removeAttribute('src');$('edit-photo').src=url;}
+      $('editor-kind').textContent=isVideoFile?`VIDEO • ${Math.round(duration)}s / 300s`:'PHOTO';
+      $('video-effects-note').hidden=!isVideoFile;
+      $('editor-back').textContent=isVideoFile?'← Change video':'← Change photo';
+      renderFilterOptions();
     }catch(e){URL.revokeObjectURL(url);toast(e.message);}
   }
-  async function startCamera() {
-    if(!navigator.mediaDevices?.getUserMedia){$('camera-file').click();return;}
+  async function startCamera(mode='image') {
+    const videoMode=mode==='video';
+    if(!navigator.mediaDevices?.getUserMedia){(videoMode?$('capture-video-file'):$('camera-file')).click();return;}
     try {
       await stopCamera();
-      const stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:state.composer.facing},width:{ideal:1920},height:{ideal:1080}}});
-      state.composer.stream=stream;
+      const stream=await navigator.mediaDevices.getUserMedia({audio:videoMode,video:{facingMode:{ideal:state.composer.facing},width:{ideal:videoMode?1280:1920},height:{ideal:videoMode?720:1080}}});
+      state.composer.stream=stream;state.composer.cameraMode=mode;
       $('camera-preview').srcObject=stream;
       await $('camera-preview').play();
       $('source-choice').hidden=true;$('camera-stage').hidden=false;$('edit-stage').hidden=true;
-    }catch(e){toast('Live camera unavailable. Opening your device camera instead.');$('camera-file').click();}
+      $('camera-shutter').hidden=videoMode;$('camera-record').hidden=!videoMode;
+      $('record-counter').hidden=!videoMode;$('record-counter').textContent='00:00 / 03:00';
+    }catch(e){toast('Live camera unavailable. Choose a video or photo from your device.');(videoMode?$('capture-video-file'):$('camera-file')).click();}
   }
   async function stopCamera() {
-    if(state.composer.stream){state.composer.stream.getTracks().forEach(t=>t.stop());state.composer.stream=null;}
+    const c=state.composer;
+    if(c.recordTimer){clearInterval(c.recordTimer);c.recordTimer=null;}
+    if(c.recorder?.state==='recording'){
+      c.cancelRecording=true; c.recorder.stop();
+    }
+    c.recorder=null;
+    if(c.stream){c.stream.getTracks().forEach(t=>t.stop());c.stream=null;}
     $('camera-preview').srcObject=null;
+    $('camera-record').classList.remove('recording');$('camera-record').textContent='● Record';
   }
   async function snapCamera() {
     const v=$('camera-preview');if(!v.videoWidth||!v.videoHeight){toast('Camera is not ready yet.');return;}
@@ -418,6 +501,39 @@
     canvas.getContext('2d').drawImage(v,0,0);
     const blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',.9));
     if(blob)await setSource(new File([blob],'camera.jpg',{type:'image/jpeg'}));
+  }
+  function recordVideo() {
+    const c=state.composer;
+    if(c.recorder?.state==='recording'){c.recorder.stop();return;}
+    if(!c.stream){toast('Open the camera first.');return;}
+    if(!window.MediaRecorder){toast('Your browser cannot record directly. Use Upload video instead.');return;}
+    const types=['video/mp4','video/webm;codecs=vp8,opus','video/webm'];
+    const mime=types.find(t=>MediaRecorder.isTypeSupported(t));
+    if(!mime){toast('Recording format unavailable. Use Upload video instead.');return;}
+    const chunks=[];
+    let total=0; c.cancelRecording=false;
+    try {
+      const rec=new MediaRecorder(c.stream,{mimeType:mime,videoBitsPerSecond:1800000});c.recorder=rec;
+      rec.ondataavailable=e=>{if(e.data?.size){chunks.push(e.data);total+=e.data.size;}if(total>VIDEO_MAX_BYTES-1024*1024&&rec.state==='recording'){toast('Recording stopped near 50 MB limit.');rec.stop();}};
+      rec.onerror=()=>toast('Could not record video on this device.');
+      rec.onstop=async()=>{
+        if(c.recordTimer){clearInterval(c.recordTimer);c.recordTimer=null;}
+        $('camera-record').classList.remove('recording');$('camera-record').textContent='● Record';
+        if(c.cancelRecording||!chunks.length)return;
+        const outputType=rec.mimeType.startsWith('video/mp4')?'video/mp4':'video/webm';
+        const ext=outputType==='video/mp4'?'mp4':'webm';
+        const blob=new Blob(chunks,{type:outputType});
+        if(blob.size>VIDEO_MAX_BYTES){toast('Video exceeds 50 MB. Record a shorter clip.');return;}
+        await setSource(new File([blob],'halloween-recording.'+ext,{type:outputType}));
+      };
+      rec.start(1000);c.recordStarted=Date.now();
+      $('camera-record').classList.add('recording');$('camera-record').textContent='■ Stop';
+      c.recordTimer=setInterval(()=>{
+        const sec=Math.floor((Date.now()-c.recordStarted)/1000);
+        $('record-counter').textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')+' / 03:00';
+        if(sec>=VIDEO_RECORD_MAX_SECONDS&&rec.state==='recording'){rec.stop();toast('3-minute recording limit reached.');}
+      },300);
+    }catch(e){toast('Video recording failed. Use Upload video instead.');}
   }
   async function makeEditedJpeg() {
     const c=state.composer,img=c.img;
@@ -442,37 +558,44 @@
     return {blob,width,height};
   }
   async function publishPhoto() {
-    if(state.composer.busy)return;
-    state.composer.busy=true;$('publish-photo').disabled=true;
-    const status=$('upload-progress');
-    let uploadedPath=null;
+    const c=state.composer;
+    if(c.busy)return;
+    c.busy=true;$('publish-photo').disabled=true;
+    const status=$('upload-progress');let uploadedPath=null;
     try {
-      status.textContent='✦ Applying Halloween magic...';
-      const {blob,width,height}=await makeEditedJpeg();
+      const video=c.kind==='video';
+      status.textContent=video?'✦ Preparing your video...':'✦ Applying Halloween magic...';
+      const prepared=video?{blob:c.file,width:c.video.width,height:c.video.height}:await makeEditedJpeg();
+      const {blob,width,height}=prepared;
       const caption=$('photo-caption').value.trim().slice(0,140);
-      const id=(window.crypto?.randomUUID?.()||'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const v=Math.floor(Math.random()*16);return (c==='x'?v:(v&3|8)).toString(16);}));
+      const id=(window.crypto?.randomUUID?.()||'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const v=window.crypto?.getRandomValues?(window.crypto.getRandomValues(new Uint8Array(1))[0]&15):Math.floor(Math.random()*16);return(c==='x'?v:(v&3|8)).toString(16);}));
+      const fileType=video?getVideoType(c.file):'image/jpeg';
+      const extension=video?({'video/mp4':'mp4','video/quicktime':'mov','video/webm':'webm'})[fileType]:'jpg';
+      if(!extension)throw new Error('Unsupported video type.');
+      if(video && (c.duration>VIDEO_UPLOAD_MAX_SECONDS+0.5||blob.size>VIDEO_MAX_BYTES))throw new Error('Video exceeds 5 minutes or 50 MB.');
       if(state.demo) {
         const url=URL.createObjectURL(blob);
-        state.photos.unshift({id,room_id:'demo',author_id:state.user.id,author_name:state.me.display_name,caption,storage_path:'',localUrl:url,filter_name:state.composer.filter,frame_name:state.composer.frame,created_at:new Date().toISOString()});
+        state.demoSealed.unshift({id,room_id:'demo',author_id:state.user.id,author_name:state.me.display_name,caption,storage_path:'',localUrl:url,media_kind:video?'video':'image',duration_seconds:video?c.duration:null,filter_name:c.filter,frame_name:c.frame,created_at:new Date().toISOString()});
+        state.pending.count++;state.pending.next=state.pending.next||new Date(Date.now()+12*3600000).toISOString();
       } else {
-        uploadedPath=state.party.id+'/'+state.user.id+'/'+id+'.jpg';
-        status.textContent='✦ Sending your snap to the party...';
-        const upload=await state.db.storage.from('halloween-snaps').upload(uploadedPath,blob,{contentType:'image/jpeg',cacheControl:'3600',upsert:false});
+        uploadedPath=state.party.id+'/'+state.user.id+'/'+id+'.'+extension;
+        status.textContent=video?'✦ Uploading your video (up to 50 MB)...':'✦ Sending your photo into the vault...';
+        const upload=await state.db.storage.from('halloween-snaps').upload(uploadedPath,blob,{contentType:fileType,cacheControl:'3600',upsert:false});
         if(upload.error)throw upload.error;
         const row=await state.db.from('halloween_photos').insert({
           room_id:state.party.id,author_id:state.user.id,storage_path:uploadedPath,caption,
-          filter_name:state.composer.filter,frame_name:state.composer.frame,width,height
+          media_kind:video?'video':'image',duration_seconds:video?c.duration:null,
+          filter_name:c.filter,frame_name:c.frame,width,height
         });
         if(row.error)throw row.error;
       }
       await hideModal('composer');
       if(state.demo)renderGallery();else await refreshAll();
-      toast('Your snap is on the wall! ✳');
+      toast('Snap sealed! It will unlock for everyone 12 hours after upload. 🔒');
     }catch(e){
-      // Clean up when an upload succeeds but inserting metadata fails.
       if(uploadedPath&&state.db)await state.db.storage.from('halloween-snaps').remove([uploadedPath]).catch(()=>{});
       status.textContent='';toast('Could not post: '+(e.message||'Unknown error'));
-    }finally{state.composer.busy=false;$('publish-photo').disabled=false;}
+    }finally{c.busy=false;$('publish-photo').disabled=false;}
   }
   async function setEveryoneTheme() {
     if(state.demo||!state.party||state.party.owner_id!==state.user?.id)return;
@@ -517,11 +640,16 @@
     $('viewer-like').addEventListener('click',()=>toggleLike(state.viewIds[state.viewIndex]));
     $('viewer-download').addEventListener('click',downloadView);$('viewer-delete').addEventListener('click',deleteView);
     $('choose-photo').addEventListener('click',()=>$('gallery-file').click());
+    $('choose-video').addEventListener('click',()=>$('video-file').click());
+    $('start-video-camera').addEventListener('click',()=>startCamera('video'));
+    $('video-file').addEventListener('change',e=>setSource(e.target.files?.[0]));
+    $('capture-video-file').addEventListener('change',e=>setSource(e.target.files?.[0]));
     $('gallery-file').addEventListener('change',e=>setSource(e.target.files?.[0]));
     $('camera-file').addEventListener('change',e=>setSource(e.target.files?.[0]));
-    $('start-camera').addEventListener('click',startCamera);
+    $('start-camera').addEventListener('click',()=>startCamera('image'));
     $('camera-shutter').addEventListener('click',snapCamera);
-    $('camera-flip').addEventListener('click',async()=>{state.composer.facing=state.composer.facing==='environment'?'user':'environment';await startCamera();});
+    $('camera-record').addEventListener('click',recordVideo);
+    $('camera-flip').addEventListener('click',async()=>{state.composer.facing=state.composer.facing==='environment'?'user':'environment';await startCamera(state.composer.cameraMode);});
     $('camera-cancel').addEventListener('click',async()=>{await stopCamera();$('camera-stage').hidden=true;$('source-choice').hidden=false;});
     $('editor-back').addEventListener('click',()=>{$('edit-stage').hidden=true;$('source-choice').hidden=false;clearComposer();});
     $('publish-photo').addEventListener('click',publishPhoto);
@@ -537,6 +665,7 @@
   }
   async function init() {
     events();renderThemes();
+    setInterval(()=>{if(state.party){renderPending();if(!state.demo&&state.pending.next&&new Date(state.pending.next).getTime()<=Date.now())scheduleRefresh();}},20000);
     const code=new URL(window.location.href).searchParams.get('party');
     if(!code)return;
     // Returning member: access is granted by existing anonymous Auth session.
