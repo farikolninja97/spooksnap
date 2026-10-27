@@ -1,4 +1,4 @@
-/* Halloween Snap v1.04 — static Github Pages + Supabase.
+/* Halloween Snap v1.05 — static Github Pages + Supabase.
    Public browser config only. Never embed a service-role key. */
 (() => {
   'use strict';
@@ -17,8 +17,16 @@
   ];
   const VIDEO_MAX_SECONDS = 45; // Same maximum for camera and uploaded clips
   const VIDEO_MAX_BYTES = 50*1024*1024; // Supabase Free storage object cap
-  const FRAMES = [{id:'none',label:'Original'},{id:'bats',label:'Moonlit Bats'},{id:'web',label:'Spider Lace'},{id:'pumpkins',label:'Pumpkin Party'},{id:'ghosts',label:'Phantom Glow'},{id:'witches',label:'Witches Coven'},{id:'skulls',label:'Bone Yard'}];
-  const frameURL = frame => frame==='none'?'':'assets/frames/'+(FRAMES.some(f=>f.id===frame)?frame:'bats')+'.svg';
+  const FRAMES = [{id:'none',label:'Original'},{id:'bats',label:'Moonlit Manor'},{id:'web',label:'Gothic Spider Lace'},{id:'pumpkins',label:'Harvest Haunt'},{id:'ghosts',label:'Friendly Phantoms'},{id:'witches',label:'Witching Hour'},{id:'skulls',label:'Blood Roses'}];
+  // Original high-detail transparent overlays, with variants that preserve corner art on portrait snaps.
+  const frameURL = (frame,ratio=1) => {
+    if(frame==='none')return '';
+    const id=FRAMES.some(f=>f.id===frame)?frame:'bats';
+    const suffix=ratio<0.66?'-story':ratio<0.93?'-portrait':ratio>1.22?'-landscape':'';
+    return 'assets/frames/'+id+suffix+'.webp';
+  };
+  const frameRatio = (width,height) => width&&height ? width/height : 1;
+  const composerRatio = () => {const c=state.composer;return c.kind==='video'?frameRatio(c.video?.width,c.video?.height):frameRatio(c.img?.naturalWidth,c.img?.naturalHeight);};
   const THEMES = [
     {id:'haunted',label:'Haunted After Dark',description:'Electric moonlight',background:'linear-gradient(135deg,#151421 55%,#d5f76f)'},
     {id:'pumpkin',label:'Pumpkin Fever',description:'Orange everything',background:'linear-gradient(135deg,#291a21 55%,#ff9a42)'},
@@ -281,7 +289,7 @@
     grid.innerHTML=photos.map(p=>{
       const url=getPhotoUrl(p),label=(FILTERS.find(f=>f.id===p.filter_name)||FILTERS[0]).label;
       const video=isVideo(p);
-      const media=video?`<div class="video-thumb" style="filter:${escapeHTML(mediaFilter(p))}"><video src="${escapeHTML(url)}#t=0.01" preload="metadata" muted playsinline></video>${p.frame_name&&p.frame_name!=='none'?`<img class="thumb-frame" src="${frameURL(p.frame_name)}" alt="" loading="lazy">`:""}<span class="video-play-icon">▶</span><span class="video-duration">${Math.round(p.duration_seconds||0)}s</span></div>`:`<img src="${escapeHTML(url)}" alt="${escapeHTML(p.caption||'A Halloween party photo by '+p.author_name)}" loading="lazy">`;
+      const media=video?`<div class="video-thumb" style="filter:${escapeHTML(mediaFilter(p))}"><video src="${escapeHTML(url)}#t=0.01" preload="metadata" muted playsinline></video>${p.frame_name&&p.frame_name!=='none'?`<img class="thumb-frame" src="${frameURL(p.frame_name,frameRatio(p.width,p.height))}" alt="" loading="lazy">`:""}<span class="video-play-icon">▶</span><span class="video-duration">${Math.round(p.duration_seconds||0)}s</span></div>`:`<img src="${escapeHTML(url)}" alt="${escapeHTML(p.caption||'A Halloween party photo by '+p.author_name)}" loading="lazy">`;
       return `<article class="photo-card"><button class="photo-tap" type="button" data-action="view" data-id="${escapeHTML(p.id)}" aria-label="Open ${escapeHTML(p.author_name)}'s ${video?'video':'photo'}">${media}<span class="photo-filter-label">✦ ${escapeHTML(video?'VIDEO • '+label.toUpperCase():label.toUpperCase())}</span></button><div class="photo-footer"><div class="photo-byline"><span><span class="photo-avatar">${escapeHTML(initial(p.author_name))}</span><b>${escapeHTML(p.author_name)}</b></span><time>${escapeHTML(dateLabel(p.created_at))}</time></div>${p.caption?`<p class="photo-caption">${escapeHTML(p.caption)}</p>`:''}<div class="photo-actions"><button class="heart-button ${didLike(p.id)?'liked':''}" data-action="like" data-id="${escapeHTML(p.id)}" type="button" aria-label="Like snap">${didLike(p.id)?'♥':'♡'} <span>${countLikes(p.id)}</span></button><button class="photo-open" data-action="view" data-id="${escapeHTML(p.id)}" type="button" aria-label="View snap">VIEW ↗</button></div></div></article>`;
     }).join('');
     if(!$('viewer-modal').hidden)state.viewIds=photos.map(p=>p.id);
@@ -333,7 +341,7 @@
       player.pause();player.removeAttribute('src');player.load();
       $('viewer-photo').hidden=video;player.hidden=!video;
       $('viewer-media-frame').hidden=!video||p.frame_name==='none';
-      if(video&&p.frame_name!=='none')$('viewer-media-frame').src=frameDataURL(p.frame_name);
+      if(video&&p.frame_name!=='none')$('viewer-media-frame').src=frameDataURL(p.frame_name,frameRatio(p.width,p.height));
       $('viewer-photo').style.filter='none';
       if(video){
         player.src=url;player.style.filter=mediaFilter(p);player.load();
@@ -392,9 +400,8 @@
     copyText(partyLink(state.party.code));
   }
 
-  // Self-contained vector art; bundled locally so frames remain sharp and usable offline.
-  // Font Awesome CC BY 4.0 icon attribution is in assets/frames/FONT-AWESOME-LICENSE.txt.
-  const frameDataURL = frame => frameURL(frame);
+  // Bundled original Halloween illustrated transparent overlays: no remote downloads or stock-image license.
+  const frameDataURL = (frame,ratio=1) => frameURL(frame,ratio);
   function renderFilterOptions() {
     if(!state.composer.url)return;
     const selected=state.composer.filter,c=state.composer;
@@ -409,7 +416,7 @@
     $('chosen-filter').textContent=f.label.toUpperCase();
     $('chosen-frame').textContent=(FRAMES.find(x=>x.id===c.frame)||FRAMES[0]).label.toUpperCase();
     $('edit-frame').hidden=c.frame==='none';
-    if(c.frame!=='none')$('edit-frame').src=frameDataURL(c.frame);
+    if(c.frame!=='none')$('edit-frame').src=frameDataURL(c.frame,composerRatio());
   }
   function setCameraLayout(active) {
     $('composer-modal').querySelector('.composer-dialog').classList.toggle('camera-active',active);
@@ -696,7 +703,7 @@
     if(supportsFilter)ctx.filter='none';
     else applyPixelFilter(ctx,width,height,filter.css);
     if(c.frame!=='none') {
-      const overlay=new Image(),src=frameDataURL(c.frame);
+      const overlay=new Image(),src=frameDataURL(c.frame,frameRatio(width,height));
       await new Promise((resolve,reject)=>{
         overlay.onload=resolve;
         overlay.onerror=()=>reject(new Error('Could not add that frame. Please reload the page.'));

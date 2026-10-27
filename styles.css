@@ -113,3 +113,9 @@ body[data-theme="slime"]{--bg:#101a18;--surface:#172823;--surface2:#203a30;--tex
 @media(max-height:610px){.camera-bottom-actions{padding-top:15px;padding-bottom:calc(10px + env(safe-area-inset-bottom))}.camera-capture-group{gap:5px}}
 
 #edit-video[hidden],#edit-photo[hidden]{display:none!important}
+
+/* V1.05: illustrated Halloween overlays. Keep preview cards lightweight and crisp. */
+.frame-item .frame-thumb{background:radial-gradient(circle at 50% 48%,#37364b,#14131b 82%)}
+.frame-item .frame-thumb img{image-rendering:auto;object-fit:fill}
+.frame-item:hover .frame-thumb{box-shadow:0 0 0 1px #ffffff42,inset 0 0 20px #bd66f735}
+.frame-overlay,.viewer-media-frame,.thumb-frame{image-rendering:auto}
