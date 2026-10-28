@@ -1,4 +1,4 @@
-/* Halloween Snap v1.06 — static Github Pages + Supabase.
+/* Halloween Snap v1.07 — static Github Pages + Supabase.
    Public browser config only. Never embed a service-role key. */
 (() => {
   'use strict';
@@ -101,6 +101,18 @@
     if(state.poll)clearInterval(state.poll);state.poll=null;
     clearTimeout(refreshTimer);
   }
+  // Accept a short code, a spaced code, or a complete shared invitation URL.
+  // The database handles hyphenless/case-insensitive codes, including legacy codes.
+  function inviteCodeFromInput(value) {
+    let input=String(value||'').trim();
+    if (!input) return '';
+    try {
+      const url=new URL(input,window.location.href);
+      const shared=url.searchParams.get('party');
+      if(shared)input=shared;
+    } catch (_) { /* Not a URL: treat it as a typed code. */ }
+    return input.toLowerCase().replace(/[^a-z0-9]/g,'');
+  }
   function partyLink(code) {
     const url=new URL(window.location.href);
     url.searchParams.set('party',code);url.hash='';return url.toString();
@@ -172,7 +184,7 @@
         const title=$('room-name').value.trim();if(!title)throw new Error('Give your Halloween party a name.');
         response=await state.db.rpc('halloween_create_party',{p_title:title,p_name:name,p_theme:$('starting-theme').value});
       } else {
-        const code=$('join-code').value.trim().toLowerCase();
+        const code=inviteCodeFromInput($('join-code').value);
         if(!code)throw new Error('Enter the invite code from your friend.');
         response=await state.db.rpc('halloween_join_party',{p_code:code,p_name:name});
       }
@@ -422,7 +434,7 @@
   function showShare() {
     if(state.demo){toast('Demo photos are local only. Connect Supabase for a shareable party.');return;}
     if(!state.party)return;
-    $('share-code').value=state.party.code;$('share-link').value=partyLink(state.party.code);showModal('share');
+    $('share-code').value=String(state.party.code).toUpperCase();$('share-link').value=partyLink(state.party.code);showModal('share');
   }
   async function copyText(text) {
     try {
@@ -900,7 +912,7 @@
         const {data}=await state.db.auth.getUser();
         if(data?.user){
           state.user=data.user;
-          const {data:room}=await state.db.from('halloween_rooms').select('id,code').eq('code',code.toLowerCase()).maybeSingle();
+          const {data:room}=await state.db.from('halloween_rooms').select('id,code').eq('code',String(code).trim().toLowerCase()).maybeSingle();
           if(room){await openParty(room.id,room.code);return;}
         }
       }catch(e){console.warn('Could not automatically restore party:',e);}

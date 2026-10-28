@@ -10,10 +10,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=1.06">
+  <link rel="stylesheet" href="styles.css?v=1.07">
   <script src="config.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script defer src="app.js?v=1.06"></script>
+  <script defer src="app.js?v=1.07"></script>
 </head>
 <body data-theme="haunted">
   <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -98,7 +98,7 @@
         <div class="gallery-bottom">✦ &nbsp; THE NIGHT IS OURS. THE REVEAL COMES IN 12 HOURS. &nbsp; ✦</div>
       </section>
     </main>
-    <footer class="site-footer"><span>MADE FOR THE MOMENTS YOU ALMOST FORGOT.</span><span>HALLOWEEN SNAP <b>V1.06</b> ✳</span></footer>
+    <footer class="site-footer"><span>MADE FOR THE MOMENTS YOU ALMOST FORGOT.</span><span>HALLOWEEN SNAP <b>V1.07</b> ✳</span></footer>
   </div>
 
   <nav id="mobile-bar" class="mobile-bar" aria-label="Party actions" hidden>
@@ -117,12 +117,12 @@
       <form id="access-form">
         <label id="room-name-label">PARTY NAME<input id="room-name" type="text" maxlength="64" placeholder="Halloween at mine 🎃" autocomplete="off"></label>
         <label>YOUR NAME<input id="guest-name" type="text" maxlength="30" placeholder="What should friends call you?" required autocomplete="nickname"></label>
-        <label id="join-code-label" hidden>INVITE CODE<input id="join-code" type="text" maxlength="32" placeholder="Paste your party code" spellcheck="false" autocapitalize="off"></label>
+        <label id="join-code-label" hidden>FUNNY INVITE CODE<input id="join-code" type="text" maxlength="256" placeholder="BOO7K2" spellcheck="false" autocapitalize="characters" autocomplete="off" autocorrect="off"><small class="invite-tip">Just 6 characters for new parties. Paste an invite link instead if you like.</small></label>
         <label id="starting-theme-label">PICK A VIBE<select id="starting-theme"><option value="haunted">👻 Haunted After Dark</option><option value="pumpkin">🎃 Pumpkin Fever</option><option value="coven">🔮 Violet Coven</option><option value="slime">🧪 Toxic Slime</option></select></label>
         <button id="access-submit" class="button button-primary button-full" type="submit">Create my party ↗</button>
       </form>
       <p id="access-error" class="form-error" role="alert" hidden></p>
-      <p class="fine-print">No account or password needed. Your host controls stay with this browser session.</p>
+      <p class="fine-print">New parties get a funny 6-character invite—no password to invent. Host controls stay with this browser session.</p>
     </div>
   </div>
 
@@ -156,7 +156,7 @@
 
   <div id="share-modal" class="modal" hidden>
     <div class="modal-backdrop" data-close="share"></div>
-    <div class="dialog smaller-dialog" role="dialog" aria-modal="true" aria-labelledby="share-heading"><button class="close-button" type="button" data-close="share" aria-label="Close">×</button><span class="dialog-eyebrow">✳ &nbsp; THE MORE THE MERRIER</span><h2 id="share-heading">INVITE YOUR CREW</h2><p class="dialog-description">Send the link to friends. They enter their name and can start adding pictures immediately.</p><label>YOUR SECRET INVITE CODE<div class="copy-field"><input id="share-code" readonly><button id="copy-code" type="button">Copy</button></div></label><label>PARTY LINK<div class="copy-field"><input id="share-link" readonly><button id="copy-link" type="button">Copy</button></div></label><button id="native-share" class="button button-primary button-full" type="button">↗ Share with friends</button><p class="fine-print">Only share with people you want in your gallery. Anyone with the invite can join.</p></div>
+    <div class="dialog smaller-dialog" role="dialog" aria-modal="true" aria-labelledby="share-heading"><button class="close-button" type="button" data-close="share" aria-label="Close">×</button><span class="dialog-eyebrow">✳ &nbsp; THE MORE THE MERRIER</span><h2 id="share-heading">INVITE YOUR CREW</h2><p class="dialog-description">Send the link to friends. They enter their name and can start adding pictures immediately.</p><label>YOUR PARTY CODE<div class="copy-field"><input id="share-code" readonly aria-label="Party invite code"><button id="copy-code" type="button">Copy code</button></div></label><p class="invite-tip">Six characters for new parties. Copy the code or send the link below.</p><label>PARTY LINK<div class="copy-field"><input id="share-link" readonly><button id="copy-link" type="button">Copy</button></div></label><button id="native-share" class="button button-primary button-full" type="button">↗ Share with friends</button><p class="fine-print">Only share with people you want in your gallery. Anyone with the invite can join.</p></div>
   </div>
 
   <div id="theme-modal" class="modal" hidden><div class="modal-backdrop" data-close="theme"></div><div class="dialog smaller-dialog" role="dialog" aria-modal="true" aria-labelledby="theme-heading"><button class="close-button" type="button" data-close="theme" aria-label="Close">×</button><span class="dialog-eyebrow">✳ &nbsp; SET THE MOOD</span><h2 id="theme-heading">CHOOSE YOUR VIBE</h2><p class="dialog-description">Change the colors of your photo wall. The host can set the party-wide theme.</p><div id="theme-tiles" class="theme-tiles"></div><button id="use-party-theme" class="button button-secondary button-full" type="button">Use party's theme</button><button id="set-party-theme" class="button button-primary button-full" hidden type="button">Set this theme for everyone ↗</button><button id="leave-party" class="muted-link" type="button">← Leave this photo wall</button></div></div>
