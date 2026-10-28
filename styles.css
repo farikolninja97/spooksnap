@@ -37,7 +37,7 @@ body[data-theme="slime"]{--bg:#101a18;--surface:#172823;--surface2:#203a30;--tex
 
 /* V1.03: tactile Snapchat-style camera capture */
 .camera-viewport{position:relative;overflow:hidden;border-radius:18px;background:#090914}
-.camera-viewport video{display:block;width:100%;height:min(59dvh,560px);max-height:none;object-fit:cover;border-radius:18px}
+.camera-viewport video{display:block;width:100%;height:min(59dvh,560px);max-height:none;object-fit:contain;border-radius:18px}
 .camera-viewport .record-counter{position:absolute;top:12px;left:50%;transform:translateX(-50%);border-radius:100px;background:#ce294bd9;color:white;padding:9px 17px;z-index:2;white-space:nowrap;box-shadow:0 4px 16px #0005}
 .shutter{width:74px;height:74px;flex:0 0 74px;border-radius:50%;background:#f9f6ff;border:5px solid white;outline:3px solid #9beec1;outline-offset:3px;box-shadow:0 5px 22px #0007;display:grid;place-items:center;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:transform .13s ease,background .15s ease;}
 .shutter span{display:block;width:56px;height:56px;border:2px solid #bdb7e0;border-radius:50%;transition:all .16s ease}
@@ -70,7 +70,7 @@ body[data-theme="slime"]{--bg:#101a18;--surface:#172823;--surface2:#203a30;--tex
 .composer-dialog.camera-active .camera-stage{display:flex;flex:1;min-height:0;width:100%;background:#070711}
 .composer-dialog.camera-active .camera-stage[hidden]{display:none}
 .composer-dialog.camera-active .camera-viewport{flex:1;min-height:0;border-radius:0;position:relative;overflow:hidden}
-.composer-dialog.camera-active .camera-viewport video{width:100%;height:100%;max-height:none;object-fit:cover;border-radius:0;background:radial-gradient(circle at 40% 40%,#27283d,#080811)}
+.composer-dialog.camera-active .camera-viewport video{width:100%;height:100%;max-height:none;object-fit:contain;border-radius:0;background:radial-gradient(circle at 40% 40%,#27283d,#080811)}
 .camera-top-actions{position:absolute;top:0;left:0;right:0;padding:calc(17px + env(safe-area-inset-top)) 19px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px;z-index:10;background:linear-gradient(#0008,transparent);pointer-events:none}
 .camera-top-actions>*{pointer-events:auto}
 .camera-brand{font:800 10px 'Space Grotesk',sans-serif;letter-spacing:1.4px;text-shadow:0 2px 9px #000}
@@ -119,3 +119,8 @@ body[data-theme="slime"]{--bg:#101a18;--surface:#172823;--surface2:#203a30;--tex
 .frame-item .frame-thumb img{image-rendering:auto;object-fit:fill}
 .frame-item:hover .frame-thumb{box-shadow:0 0 0 1px #ffffff42,inset 0 0 20px #bd66f735}
 .frame-overlay,.viewer-media-frame,.thumb-frame{image-rendering:auto}
+
+/* V1.06 — preserve the camera sensor's entire field of view, not a zoomed crop.
+   Empty areas use the dark camera canvas, leaving controls fullscreen. */
+.camera-viewport{background:#080811}
+.camera-viewport video,.composer-dialog.camera-active .camera-viewport video{object-fit:contain!important;object-position:center center}

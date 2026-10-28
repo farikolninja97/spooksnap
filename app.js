@@ -1,4 +1,4 @@
-/* Halloween Snap v1.05 — static Github Pages + Supabase.
+/* Halloween Snap v1.06 — static Github Pages + Supabase.
    Public browser config only. Never embed a service-role key. */
 (() => {
   'use strict';
@@ -18,13 +18,49 @@
   const VIDEO_MAX_SECONDS = 45; // Same maximum for camera and uploaded clips
   const VIDEO_MAX_BYTES = 50*1024*1024; // Supabase Free storage object cap
   const FRAMES = [{id:'none',label:'Original'},{id:'bats',label:'Moonlit Manor'},{id:'web',label:'Gothic Spider Lace'},{id:'pumpkins',label:'Harvest Haunt'},{id:'ghosts',label:'Friendly Phantoms'},{id:'witches',label:'Witching Hour'},{id:'skulls',label:'Blood Roses'}];
-  // Original high-detail transparent overlays, with variants that preserve corner art on portrait snaps.
-  const frameURL = (frame,ratio=1) => {
-    if(frame==='none')return '';
+  // V1.06: use the matching high-detail artwork first, then the base WebP and
+  // legacy bundled SVG. A missing GitHub Pages asset must never fail silently.
+  const FRAME_CACHE_VERSION = '1.06';
+  const frameSources = (frame,ratio=1) => {
+    if(!frame || frame==='none')return [];
     const id=FRAMES.some(f=>f.id===frame)?frame:'bats';
     const suffix=ratio<0.66?'-story':ratio<0.93?'-portrait':ratio>1.22?'-landscape':'';
-    return 'assets/frames/'+id+suffix+'.webp';
+    const root='assets/frames/'+id;
+    return [...new Set([root+suffix+'.webp',root+'.webp',root+'.svg'])]
+      .map(path=>path+'?v='+FRAME_CACHE_VERSION);
   };
+  const frameURL = (frame,ratio=1) => frameSources(frame,ratio)[0]||'';
+  function useFrameArtwork(img,frame,ratio=1) {
+    const candidates=frameSources(frame,ratio);
+    img.onerror=null;
+    if(!candidates.length){img.removeAttribute('src');return;}
+    let i=0;
+    img.onerror=()=>{
+      i++;
+      if(i<candidates.length)img.src=candidates[i];
+      else {
+        img.onerror=null;
+        img.removeAttribute('src');
+        img.dataset.frameMissing='true';
+        if(img.id==='edit-frame')toast('Frame artwork is missing. Upload the assets/frames folder from V1.06.');
+      }
+    };
+    img.dataset.frameMissing='false';
+    img.src=candidates[0];
+  }
+  async function loadFrameForExport(frame,ratio) {
+    const candidates=frameSources(frame,ratio);
+    for(const src of candidates){
+      const overlay=new Image();
+      const loaded=await new Promise(resolve=>{
+        overlay.onload=()=>resolve(true);
+        overlay.onerror=()=>resolve(false);
+        overlay.src=src;
+      });
+      if(loaded && overlay.naturalWidth>0)return overlay;
+    }
+    throw new Error('Frame artwork could not load. Upload github-pages/assets/frames/ from the V1.06 update.');
+  }
   const frameRatio = (width,height) => width&&height ? width/height : 1;
   const composerRatio = () => {const c=state.composer;return c.kind==='video'?frameRatio(c.video?.width,c.video?.height):frameRatio(c.img?.naturalWidth,c.img?.naturalHeight);};
   const THEMES = [
@@ -289,9 +325,10 @@
     grid.innerHTML=photos.map(p=>{
       const url=getPhotoUrl(p),label=(FILTERS.find(f=>f.id===p.filter_name)||FILTERS[0]).label;
       const video=isVideo(p);
-      const media=video?`<div class="video-thumb" style="filter:${escapeHTML(mediaFilter(p))}"><video src="${escapeHTML(url)}#t=0.01" preload="metadata" muted playsinline></video>${p.frame_name&&p.frame_name!=='none'?`<img class="thumb-frame" src="${frameURL(p.frame_name,frameRatio(p.width,p.height))}" alt="" loading="lazy">`:""}<span class="video-play-icon">▶</span><span class="video-duration">${Math.round(p.duration_seconds||0)}s</span></div>`:`<img src="${escapeHTML(url)}" alt="${escapeHTML(p.caption||'A Halloween party photo by '+p.author_name)}" loading="lazy">`;
+      const media=video?`<div class="video-thumb" style="filter:${escapeHTML(mediaFilter(p))}"><video src="${escapeHTML(url)}#t=0.01" preload="metadata" muted playsinline></video>${p.frame_name&&p.frame_name!=='none'?`<img class="thumb-frame" data-gallery-frame="${escapeHTML(p.frame_name)}" data-gallery-ratio="${frameRatio(p.width,p.height)}" alt="" loading="lazy">`:""}<span class="video-play-icon">▶</span><span class="video-duration">${Math.round(p.duration_seconds||0)}s</span></div>`:`<img src="${escapeHTML(url)}" alt="${escapeHTML(p.caption||'A Halloween party photo by '+p.author_name)}" loading="lazy">`;
       return `<article class="photo-card"><button class="photo-tap" type="button" data-action="view" data-id="${escapeHTML(p.id)}" aria-label="Open ${escapeHTML(p.author_name)}'s ${video?'video':'photo'}">${media}<span class="photo-filter-label">✦ ${escapeHTML(video?'VIDEO • '+label.toUpperCase():label.toUpperCase())}</span></button><div class="photo-footer"><div class="photo-byline"><span><span class="photo-avatar">${escapeHTML(initial(p.author_name))}</span><b>${escapeHTML(p.author_name)}</b></span><time>${escapeHTML(dateLabel(p.created_at))}</time></div>${p.caption?`<p class="photo-caption">${escapeHTML(p.caption)}</p>`:''}<div class="photo-actions"><button class="heart-button ${didLike(p.id)?'liked':''}" data-action="like" data-id="${escapeHTML(p.id)}" type="button" aria-label="Like snap">${didLike(p.id)?'♥':'♡'} <span>${countLikes(p.id)}</span></button><button class="photo-open" data-action="view" data-id="${escapeHTML(p.id)}" type="button" aria-label="View snap">VIEW ↗</button></div></div></article>`;
     }).join('');
+    grid.querySelectorAll('[data-gallery-frame]').forEach(img=>useFrameArtwork(img,img.dataset.galleryFrame,Number(img.dataset.galleryRatio)));
     if(!$('viewer-modal').hidden)state.viewIds=photos.map(p=>p.id);
   }
   function renderCrew() {
@@ -341,7 +378,7 @@
       player.pause();player.removeAttribute('src');player.load();
       $('viewer-photo').hidden=video;player.hidden=!video;
       $('viewer-media-frame').hidden=!video||p.frame_name==='none';
-      if(video&&p.frame_name!=='none')$('viewer-media-frame').src=frameDataURL(p.frame_name,frameRatio(p.width,p.height));
+      if(video&&p.frame_name!=='none')useFrameArtwork($('viewer-media-frame'),p.frame_name,frameRatio(p.width,p.height));
       $('viewer-photo').style.filter='none';
       if(video){
         player.src=url;player.style.filter=mediaFilter(p);player.load();
@@ -406,7 +443,8 @@
     if(!state.composer.url)return;
     const selected=state.composer.filter,c=state.composer;
     $('filter-list').innerHTML=FILTERS.map(f=>`<button type="button" class="filter-item ${f.id===selected?'active':''}" data-filter="${f.id}"><span class="filter-thumb">${c.kind==='video'?`<span class="filter-video-thumb" style="filter:${f.css}">🎬</span>`:`<img alt="" src="${escapeHTML(c.url)}" style="filter:${f.css}">`}</span><b>${escapeHTML(f.label)}</b></button>`).join('');
-    $('frame-list').innerHTML=FRAMES.map(f=>`<button type="button" class="frame-item ${f.id===c.frame?'active':''}" data-frame="${f.id}" aria-pressed="${f.id===c.frame}"><span class="frame-thumb">${f.id==='none'?'<span class="frame-none">✦</span>':`<img src="${frameURL(f.id)}" alt="" loading="lazy">`}</span><b>${escapeHTML(f.label)}</b></button>`).join('');
+    $('frame-list').innerHTML=FRAMES.map(f=>`<button type="button" class="frame-item ${f.id===c.frame?'active':''}" data-frame="${f.id}" aria-pressed="${f.id===c.frame}"><span class="frame-thumb">${f.id==='none'?'<span class="frame-none">✦</span>':`<img data-frame-preview="${f.id}" alt="" loading="lazy">`}</span><b>${escapeHTML(f.label)}</b></button>`).join('');
+    $('frame-list').querySelectorAll('[data-frame-preview]').forEach(img=>useFrameArtwork(img,img.dataset.framePreview));
     updateComposerPreview();
   }
   function updateComposerPreview() {
@@ -416,7 +454,7 @@
     $('chosen-filter').textContent=f.label.toUpperCase();
     $('chosen-frame').textContent=(FRAMES.find(x=>x.id===c.frame)||FRAMES[0]).label.toUpperCase();
     $('edit-frame').hidden=c.frame==='none';
-    if(c.frame!=='none')$('edit-frame').src=frameDataURL(c.frame,composerRatio());
+    if(c.frame!=='none')useFrameArtwork($('edit-frame'),c.frame,composerRatio());
   }
   function setCameraLayout(active) {
     $('composer-modal').querySelector('.composer-dialog').classList.toggle('camera-active',active);
@@ -525,7 +563,8 @@
       setCameraStatus('failed',cameraFailureMessage(null));
       return;
     }
-    const video={facingMode:{ideal:c.facing},width:{ideal:1280},height:{ideal:1920}};
+    // Prefer the camera's native field of view: a forced 9:16 sensor size can crop the feed.
+    const video={facingMode:{ideal:c.facing},width:{ideal:1280}};
     let stream;
     try {
       let noMicrophone=false;
@@ -703,12 +742,7 @@
     if(supportsFilter)ctx.filter='none';
     else applyPixelFilter(ctx,width,height,filter.css);
     if(c.frame!=='none') {
-      const overlay=new Image(),src=frameDataURL(c.frame,frameRatio(width,height));
-      await new Promise((resolve,reject)=>{
-        overlay.onload=resolve;
-        overlay.onerror=()=>reject(new Error('Could not add that frame. Please reload the page.'));
-        overlay.src=src;
-      });
+      const overlay=await loadFrameForExport(c.frame,frameRatio(width,height));
       ctx.drawImage(overlay,0,0,width,height);
     }
     const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.92));
